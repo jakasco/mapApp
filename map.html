@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+       #map {
+        height: 500px;
+        width: 700px;
+		position: absolute;
+		top: 150px;
+		left: 20%;
+       }
+	   #title{
+	   background-color: beige;
+	   position: absolute;
+	   top: 60px;
+	   left: 530px;
+	   font-size: 28px;
+	   font-weight: bold;
+	   }
+	   #tfSearch{
+	   position: absolute;
+	   top: 200px;
+	   }
+	   #searchB{
+	   position: absolute;
+	   top: 200px;
+	   left: 160px;
+	   }
+	   #searchT{
+		position: absolute;
+		top: 150px;
+		font-size: 16;
+		font-weight: bold;
+	   }
+	   #openB{
+	   position: absolute;
+	   top: 260px;
+	   }
+	   #openLb{
+	   font-size: 16;
+	   font-weight: bold;
+	   position: absolute;
+	   top: 220px;
+	   }
+	   #info{
+	   font-size: 16;
+	   font-weight: bold;
+	   position: absolute;
+	   left: 460px;
+	   top: 110px;
+	   }
+    </style>
+  </head>
+  <body>
+    <p id="title">Map App</p>
+	<p id="info">Click map to find and save new places!</p>
+    <div id="map"></div>
+	<p id="cords"></p>
+	<div>
+	<p id="searchT">Search places with title:<p>
+	<input type="text" id="tfSearch" value="">
+	<button id="searchB" type=button  onclick=searchTitle()>Search</button>						    <!-- Etsii titlen perusteella paikan -->
+	<br>
+	<form action="/" method="post">	 
+	<p id="openLb">Search open places<p>
+	<button id="openB" type=button  onclick=openPlaces()>Open places</button> 						<!-- Mitä paikat on auki -->
+	</form>
+	</div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<script>	
+	jQuery(function($) {
+	$(document).on('click', '#Delete', function(e) {  // .on(), jotta tunnistetaan lisätyt elementit
+    e.preventDefault();
+    $.ajax({
+        url:'/',
+        type:'post',
+		data: {objects:objects},
+        success:function(){
+			console.log("Ajax data: "+objects); 
+        }
+	});
+});
+});
+
+	</script>	
+	
+    <script>
+		
+		markerId = 0;
+		markers = [];				//aina kun merkki lisätään, se laitetaan tähän tauluub
+		var infowindow;	
+		var infos = [];				//merkin infowindowilla sama homma
+		var tags = [[]];			//tageilla oma lista jossa on yhden merkin keywords
+		var tagDivs = [];			//infoWindowin sisällä olevaan html
+		var btId;					//html muokkaukseen
+		var tfId;
+		var map;
+		var objects;				//serverille lähetettäviä tietoja
+		var detailsRight = false;  //onko täytetyt kentät oikei, jos ei niin pitää täyttää ne oikein ennen tietokantaan päivittämistä
+		
+		
+	
+	function sendToDatabase(){	
+	
+	if(detailsRight==true){
+	jQuery(function($) {
+    $.ajax({
+        url:'/',
+        type:'post',
+		data: {objects:objects},
+        success:function(){
+			alert("Place succesfully saved!");			
+        }
+		});	 
+		});
+		}
+	}
+	
+	
+	//Kun uusi merkki klikataan, niin se tallennetaan tietokantaan
+	function sendNewTodataBase(){
+    $.ajax({
+        url:'/',
+        type:'post',
+		data: {objects:objects},
+        success:function(){
+			console.log("Ajax data: "+objects);
+        }
+	});
+	}	
+		
+      function initMap() {
+			map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 4,
+          center: {lat: -25.363882, lng: 131.044922 }
+        });
+		
+	 map.addListener('click', function(e) {
+		placeMarker(e.latLng, map);
+		
+		var posTxt = "<p id='cords' style='position:absolute; top: 640px; left: 250px; font-weight: bold'></p>"
+		var p = document.getElementById("cords");
+		p.innerHTML = posTxt;
+		});
+      
+        var bounds = {
+          north: -25.363882,
+          south: -31.203405,
+          east: 131.044922,
+          west: 125.244141
+        };
+
+        map.fitBounds(bounds);
+      }
+	  
+
+	//Etsitään paikat niiden titlen perusteella
+	  function searchTitle(){
+			var tf = document.getElementById("tfSearch");
+			var title = tf.value;
+			
+			for (i = 0; i<markers.length; i++){
+			//Jos merkin title täsmää
+			if(markers[i].get('title') == title){
+			markers[i].open();
+				}
+			}
+		}
+		
+	//Filteröidään aukinaiset paikat
+	function openPlaces(){
+	
+		var currentdate = new Date(); 
+		//tämän hetkinen aika
+		var datetime = "Time: " + currentdate.getDate() + "/"
+                + (currentdate.getMonth()+1)  + "/" 
+                + currentdate.getFullYear() + " @ "  
+                + currentdate.getHours() + ":"  
+                + currentdate.getMinutes() + ":" 
+                + currentdate.getSeconds();
+		console.log(datetime);
+		
+		for (i = 0; i<markers.length; i++){
+			var open = markers[i].get('openingHours[0]');
+			var close = markers[i].get('openingHours[1]');
+			b = false;
+			//onko paikka auki tällä hetkellä
+			for (j=open; j<close; j++){
+			if(currentdate.getHours()==j)
+				b=true;
+				}
+			if(b==true){
+			markers[i].open();
+			}
+			}
+	}
+	  
+	  //poista merkki
+	  function deleteMarker(id){
+		  var temp = "bt"+id;
+		  var deleteId = document.getElementById(temp);  //Napin koko id esim bt1
+		  var number = temp.slice(-1); 				//viimeinen merkki eli numero napista, esim 1
+		  markers[id].setMap(null);		 
+		  objects = ["Delete", id, "Null", "Null", "Null", "Null", "NULL"];		  
+	  }
+	  
+
+  
+	  //Tarkastetaan että kentät on täytetty oikein	  
+	  function checkInputs(t1,t2,t3,t4,t5){
+	  
+		var checks = [false,false,false,false,false];
+		
+		if(t1!=""){	  //title
+		checks[0]=true;
+		}else{
+		alert("Add Title!");
+		}
+		if(t2!=""){  //description
+		checks[1]=true;
+		}			//coords
+		if(numberCheck(t3)){		
+		checks[2]=true;
+		}else{
+		alert("Coordinates must be a number!");
+		}
+		//kellon aika voi olla välillä 00-24
+		if(numberCheck(t4) && numberCheck(t5)){
+		var a = 0;
+			for(i =0; i<=2; i++){
+				for(j=0; j<=4; j++){
+					a = i+""+j;
+					if(t4 == a){
+					checks[3]=true;
+					}
+					if(t5 == a){
+					checks[4]=true;
+					}
+				}
+			}
+		}
+		
+		if(checks[3] == false || checks[4] == false) {
+		alert("Opening hours must be in xx-xx (between 00-24)");
+		}
+		
+		//Jos kaikki kentät on täytetty oikein, voidaan jatkaa
+		for(var o in checks)
+          if(!checks[o]) return false;  	  
+			return true;	
+		}
+		
+		
+		
+	  
+	  //Muokkaa yksinumeroiset luvut muotoon 0X
+	  function editNumber(n){
+		
+		for(i =0; i<=9; i++){
+			if(n==i){
+				n = 0+""+i;
+				return n;
+			}
+		}
+		return n;
+	  }
+	  
+	  
+	  
+	  //Tarkasta onko numero
+	  function numberCheck(n) {
+				return !isNaN(parseFloat(n)) && isFinite(n);
+			}
+			
+	
+	
+	
+	  //Lisää keywords merkkiin
+	  function addTags(id){
+	  
+		var a = [];
+		var tag = prompt("Add keywords:");
+		if (tag == null || tag == "") {
+		//tyhjää
+		}else{
+		 a = tag.split(",");
+		var size = 0, key;
+		for (key in a) {
+         if (a.hasOwnProperty(key)) size++;
+		}
+		
+		//marker keywords arrayhyn
+		var temp = markers[id].get("keywords");
+		for(i=0; i<size; i++){
+		temp.push(a[i]);}
+		markers[id].set("keywords",temp);
+		
+		 //tietokantaan
+		objects = ["Tag",id]; 
+		
+		for(i=0; i<size; i++){
+			tags[id].push(a[i]);
+			objects.push(a[i]);
+		}
+		//Keywordsit myös tietokantaan
+		jQuery(function($) {
+		    $.ajax({
+        url:'/',
+        type:'post',
+		data: {objects:objects},
+        success:function(){
+			console.log("Ajax data: "+objects);
+        }
+				});
+			});//jquery
+		}
+		console.log("tags["+id+"] "+tags[id]);
+	  }
+	
+	
+	
+	
+	
+	//Poista tagi kentästä napstauttamalla tägiä
+	function deleteTag(id, i){
+	
+	var b = 'but'+i;
+	var div = document.getElementById(b).name;
+	
+	var size = 0, key;
+		for (key in tags[id]) {
+         if (tags[id].hasOwnProperty(key)) size++;
+		}
+	
+	for (j =0; j<size; j++){
+	if (tags[id][j]==div)
+	{
+	tags[id].splice(j, 1);	
+	}
+	}
+	var b = 'but'+i;
+	var div = document.getElementById(b).remove();;	
+	objects = ["delTag", id, tags[id][i]];
+	//poistetaan myös tietokannasta
+	jQuery(function($) {
+		    $.ajax({
+        url:'/',
+        type:'post',
+		data: {objects:objects},
+        success:function(){
+			console.log("Ajax data: "+objects);
+        }
+				});
+			});//Jquery
+	}
+	
+	//tallenna merkin tiedot
+	  function saveDetails(id){
+
+		  //Title  
+		 var temp = "tf"+id;
+		 var tf1 = document.getElementById(temp);
+		 var text = tf1.value; 
+		 markers[id].set("title",tf1.value);
+		 
+		 //Description
+		 var temp = "tf2"+id;
+		 var tf2 = document.getElementById(temp);
+		 var text2 = tf2.value;
+		 markers[id].set("description",tf2.value);
+		 
+		 //Coordinates
+		 var temp = "tf3"+id;
+		 var tf3 = document.getElementById(temp);
+		 var text3 = tf3.value;
+		 markers[id].set("coordinates",tf3.value);
+		 
+		 //opening hours, monelta
+		 var temp = "tf4"+id;
+		 var tf4 = document.getElementById(temp);
+		 var text4 = editNumber(tf4.value);
+		 markers[id].set("openingHours[0]",text4);
+		 
+		 //mihin asti
+		 var temp = "tf5"+id;
+		 var tf5 = document.getElementById(temp);
+		 var text5 = editNumber(tf5.value);
+		 markers[id].set("openingHours[1]",text5);
+		  
+		 //Edit button
+		var bt = document.createElement('input');
+		btId = "bt"+id;
+		var btText = "<button type='button' id='"+btId+"' onclick=editMarker("+id+",'','','"+text3+"','"+text4+"','"+text5+"')>Edit</button>";
+		bt.innerHTML = btText;
+		
+		//tags
+		var d = document.createElement("div");
+		var t = "<div id='t"+id+"' style='height:100px; width:140px ; overflow:auto; border:1px solid black;padding:2%; font-weight:bold'>KeyWords: (click to remove)</div>";
+		var tid = "t"+id;
+		d.setAttribute("id", tid);
+		d.innerHTML = t;
+		
+		var b = '<br>';
+		
+		//Tarkastetaan että on oikein
+		detailsRight = checkInputs(text,text2,text3,text4,text5);
+
+		//Päivitä tiedot infoWindowiin mikäli tiedot oli oikein
+		if(detailsRight==true){
+		infos[id].setContent("Title: "+text+b+"Description: "+text2+b+"Coordinates: "+text3+b+"Open: "+text4+"-"+text5+b+bt.innerHTML+d.innerHTML);  
+		
+		//Aseta tag-napit kenttään
+		var size = 0, key;
+		for (key in tags[id]) {
+         if (tags[id].hasOwnProperty(key)) size++;
+		}
+		for(i=0; i<size; i++)
+		{
+		e = "<button id='but"+i+"' type='button' name='"+tags[id][i]+"' onClick=deleteTag('"+id+"','"+i+"') >"+tags[id][i]+"</button>";
+		var b = document.createElement("p");
+		b.innerHTML = e;
+		var tid = "t"+id;
+		var c = document.getElementById(tid);
+		c.append(b);
+		}	
+
+		objects = ["Edit",id,tf1.value,tf2.value,tf3.value,tf4.value,tf5.value];  //Nämä tiedot lähetetään tietokantaan: (id, title, descr, coords, open)
+		sendToDatabase();
+		detailsRight=false;  //resettaus
+		}
+
+	  }	  
+	  
+   
+	  //Muokkaa merkkiä
+	  function editMarker(id,s1,s2,s3,s4,s5){
+
+		//Lisää poisto nappi
+		var bt = document.createElement('input');
+		btId = "bt"+id;
+		bt.setAttribute("id",btId);		
+		var btText = "<form id='Delete' method='post' action='/'><button type='button' id='"+btId+"' onclick=deleteMarker("+id+")>Delete</button></form>";
+		bt.innerHTML = btText;
+		
+		//Lisää tallennus nappi, saveDetails() metodi kun tätä painaa
+		var bt2 = document.createElement('input');
+		btId2 = "bt2"+id;	
+		var btText2 = "<form id='myForm' method='post' action='/'> <button type='button' id='"+btId2+"' onclick=saveDetails("+id+")>Save</button><form>";
+		bt2.innerHTML = btText2;
+
+		//Lisää keyWords nappi
+		var bt3 = document.createElement('input');
+		btId3 = "bt3"+id;	
+		var btText3 = "<form id='myForm' method='post' action='/'> <button type='button' id='"+btId3+"' onclick=addTags("+id+")>Add Keywords</button><form>";
+		bt3.innerHTML = btText3;
+		
+		//Tekstikenttä
+		var tf = document.createElement('input');
+		tfId = "tf"+id;
+		var tfText = "<form id='myForm2' method='post' action='/'><input type='text' id='"+tfId+"'  name='Title:' value='"+s1+"'><form>";		
+		tf.innerHTML = tfText;
+		
+		//Tekstikenttä Description
+		var tf2 = document.createElement('input');
+		tfId = "tf2"+id;
+		var tfText = "<form id='myForm2' method='post' action='/'><input type='text' id='"+tfId+"'  name='Description:' value='"+s2+"'><form>";		
+		tf2.innerHTML = tfText;
+		//Tekstikenttä Coordinates
+		var tf3 = document.createElement('input');
+		tfId = "tf3"+id;
+		var tfText = "<form id='myForm2' method='post' action='/'><input type='text' id='"+tfId+"'  name='Coordinates:' value='"+s3+"'><form>";		
+		tf3.innerHTML = tfText;
+		//Tekstikenttä Opening hours
+		var tf4 = document.createElement('input');
+		tfId = "tf4"+id;
+		var tfText = "<form id='myForm2' method='post' action='/'><input type='text' id='"+tfId+"'  name='Opening hours:' value='"+s4+"'><form>";		
+		tf4.innerHTML = tfText;
+		
+		//Opening hours kiinni meno aika
+		var tf5 = document.createElement('input');
+		tfId = "tf5"+id;
+		var tfText = "<form id='myForm2' method='post' action='/'><input type='text' id='"+tfId+"'  name='Opening hours:' value='"+s5+"'><form>";		
+		tf5.innerHTML = tfText;
+	
+		
+		var b = '<br>';
+		
+		infos[id].setContent("Title:"+tf.innerHTML+b+"Description:"+tf2.innerHTML+b+"Coordinates:"+tf3.innerHTML+b+"Opening hours:"+tf4.innerHTML+"-"+tf5.innerHTML+b+bt3.innerHTML+b+bt.innerHTML+bt2.innerHTML);
+	 }
+	  
+ 
+
+	  //Lisää merkki kartalle, sille tiedot, sekä täytä Markers[] ja tags[]  taulukkoon uusi id lisää
+	 function placeMarker(position, map) {
+		var marker = new google.maps.Marker({
+        position: position,
+        map: map,
+		store_id: markerId,
+		title: "title"+markerId,
+		description: "A place",
+		coordinates: "123",
+		openingHours: ["20","24"],
+		keywords: []
+    });
+	tags.push([]);
+	tagDivs.push(markerId);
+	objects = ["Create", marker.get('store_id'), "Null", "Null", "Null", "Null", "NULL"];
+	sendNewTodataBase();
+	
+	addInfo(marker,markerId);
+	markers.push(marker); 
+	markerId++;
+	
+	//Avataan infoWindow
+	marker.open = function () {
+	infos[marker.get('store_id')].open(marker.get('map'), marker);
+	};
+	}
+	
+	
+	//Laittaa paikkaan infoWindowin josta voi katsoa/muokata tietoja
+	function addInfo(marker, id){
+		
+		var b = '<br>';	
+	
+		//Create new nappi
+		var bt = document.createElement('input');
+		btId = "new";
+		var btText = "<button type='button' id='"+btId+"' onclick=editMarker("+id+",'','','','','')>Create</button>";
+		bt.innerHTML = btText;
+		
+		//Lisää poisto nappi
+		var bt2 = document.createElement('input');
+		btId = "bt2"+id;
+		bt2.setAttribute("id",btId);		
+		var btText = "<form id='Delete' method='post' action='/'><button type='button' id='"+btId+"' onclick=deleteMarker("+id+")>Delete</button> <form>";
+		bt2.innerHTML = btText;	
+
+	      var infowindow = new google.maps.InfoWindow({
+          content:  marker.get('store_id')+b+"Create new place?"+b+bt.innerHTML+bt2.innerHTML
+        });
+		
+		infos.push(infowindow);
+	
+		var pos = marker.position;
+		marker.addListener('click', function() {  //Avaa windowin ja näyttää coordinaatit		
+		var posTxt = "<p id='cords' style='position:absolute; top: 640px; left: 250px; font-weight: bold'>Coords: "+pos+"</p>"
+		var p = document.getElementById("cords");
+		p.innerHTML = posTxt;
+		//p.setContent(p.innerHTML);
+          infowindow.open(marker.get('map'), marker);
+        });
+	  }
+	
+    </script>
+
+    <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key="GOOGLE API KEY HERE "&callback=initMap">
+    </script>
+  </body>
+</html>
